@@ -135,7 +135,6 @@ func (lba *LdapAuth) Authenticate(user, pass string) (bool, bool, error) {
 	if lba.conn.Bind(bind_dn, pass) != nil {
 		return false, false, nil
 	}
-	defer lba.conn.UnauthenticatedBind(bind_dn)
 
 	if lba.cfg.UniqueFilter != "" {
 		res, e := lba.conn.Search(lba.new_search_param(lba.cfg.UniqueFilter, user))
