@@ -3,13 +3,16 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
+
+	"github.com/l4go/var_mtx"
 
 	"ngx_auth/etag"
 	"ngx_auth/ldap_auth"
 )
+
+var userMtx = var_mtx.NewVarMutex()
 
 func auth(user string, pass string) bool {
 	la, err := ldap_auth.NewLdapAuth(LdapAuthConfig)
@@ -17,6 +20,11 @@ func auth(user string, pass string) bool {
 		return false
 	}
 	defer la.Close()
+
+	if UseSerializedAuth {
+		userMtx.Lock(user)
+		defer userMtx.Unlock(user)
+	}
 
 	ok_auth, _, err := la.Authenticate(user, pass)
 	if err != nil {
@@ -26,10 +34,10 @@ func auth(user string, pass string) bool {
 	return ok_auth
 }
 
-func http_not_auth(w http.ResponseWriter, r *http.Request) {
+func http_not_auth(w http.ResponseWriter, _ *http.Request) {
 	realm := strings.Replace(AuthRealm, `"`, `\"`, -1)
 	w.Header().Add("WWW-Authenticate", `Basic realm="`+realm+`"`)
-	http.Error(w, "Not authorized", http.StatusUnauthorized)
+	HttpResponse.Unauth.Error(w)
 }
 
 func set_int64bin(bin []byte, v int64) {
@@ -66,8 +74,8 @@ func isEtagMatch(tag_str string, org_tag string) bool {
 }
 
 func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 
 	user, pass, ok := r.BasicAuth()
 	if !ok {
@@ -75,13 +83,15 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if NegCacheSeconds > 0 {
+		w.Header().Set("Cache-Control",
+			fmt.Sprintf("max-age=%d, must-revalidate", NegCacheSeconds))
+	}
+
 	tag := makeEtag(StartTimeMS, user, pass)
+	w.Header().Set("Etag", tag)
 	if UseEtag {
 		if !isModified(r.Header, tag) {
-			if CacheSeconds > 0 {
-				w.Header().Set("Cache-Control",
-					fmt.Sprintf("max-age=%d, must-revalidate", CacheSeconds))
-			}
 			w.Header().Set("Etag", tag)
 			w.WriteHeader(http.StatusNotModified)
 			return
@@ -97,6 +107,5 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control",
 			fmt.Sprintf("max-age=%d, must-revalidate", CacheSeconds))
 	}
-	w.Header().Set("Etag", tag)
-	io.WriteString(w, "Authorized\n")
+	HttpResponse.Ok.Error(w)
 }

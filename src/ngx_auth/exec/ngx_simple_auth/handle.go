@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -15,10 +14,10 @@ func auth(user string, pass string) bool {
 	return ok && pw == pass
 }
 
-func http_not_auth(w http.ResponseWriter, r *http.Request) {
+func http_not_auth(w http.ResponseWriter, _ *http.Request) {
 	realm := strings.Replace(AuthRealm, `"`, `\"`, -1)
 	w.Header().Add("WWW-Authenticate", `Basic realm="`+realm+`"`)
-	http.Error(w, "Not authorized", http.StatusUnauthorized)
+	HttpResponse.Unauth.Error(w)
 }
 
 func set_int64bin(bin []byte, v int64) {
@@ -33,9 +32,30 @@ func makeEtag(ms int64, user, pass string) string {
 		etag.Hmac([]byte(user), []byte(pass)))
 }
 
+func isModified(hd http.Header, org_tag string) bool {
+	if_nmatch := hd.Get("If-None-Match")
+
+	if if_nmatch != "" {
+		return !isEtagMatch(if_nmatch, org_tag)
+	}
+
+	return true
+}
+
+func isEtagMatch(tag_str string, org_tag string) bool {
+	tags, _ := etag.Split(tag_str)
+	for _, tag := range tags {
+		if tag == org_tag {
+			return true
+		}
+	}
+
+	return false
+}
+
 func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 
 	user, pass, ok := r.BasicAuth()
 	if !ok {
@@ -43,7 +63,19 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if NegCacheSeconds > 0 {
+		w.Header().Set("Cache-Control",
+			fmt.Sprintf("max-age=%d, must-revalidate", NegCacheSeconds))
+	}
+
 	tag := makeEtag(StartTimeMS, user, pass)
+	w.Header().Set("Etag", tag)
+	if UseEtag {
+		if !isModified(r.Header, tag) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
 
 	if !auth(user, pass) {
 		http_not_auth(w, r)
@@ -54,6 +86,5 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control",
 			fmt.Sprintf("max-age=%d, must-revalidate", CacheSeconds))
 	}
-	w.Header().Set("Etag", tag)
-	io.WriteString(w, "Authorized\n")
+	HttpResponse.Ok.Error(w)
 }

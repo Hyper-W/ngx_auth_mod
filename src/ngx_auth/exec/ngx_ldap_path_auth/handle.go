@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
+
+	"github.com/l4go/var_mtx"
 
 	"ngx_auth/etag"
 	"ngx_auth/ldap_auth"
@@ -36,12 +37,19 @@ func check_path(rpath string) (string, bool) {
 	return matchs[1], true
 }
 
+var userMtx = var_mtx.NewVarMutex()
+
 func auth_path(user string, pass string, rpath string) (bool, bool) {
 	la, err := ldap_auth.NewLdapAuth(LdapAuthConfig)
 	if err != nil {
 		return false, false
 	}
 	defer la.Close()
+
+	if UseSerializedAuth {
+		userMtx.Lock(user)
+		defer userMtx.Unlock(user)
+	}
 
 	ok_auth, ok_authz, err := la.Authenticate(user, pass)
 	if err != nil {
@@ -58,10 +66,10 @@ func auth_path(user string, pass string, rpath string) (bool, bool) {
 	return true, true
 }
 
-func http_not_auth(w http.ResponseWriter, r *http.Request) {
+func http_not_auth(w http.ResponseWriter, _ *http.Request) {
 	realm := strings.Replace(AuthRealm, `"`, `\"`, -1)
 	w.Header().Add("WWW-Authenticate", `Basic realm="`+realm+`"`)
-	http.Error(w, "Not authorized", http.StatusUnauthorized)
+	HttpResponse.Unauth.Error(w)
 }
 
 func set_int64bin(bin []byte, v int64) {
@@ -105,12 +113,12 @@ func isEtagMatch(tag_str string, org_tag string) bool {
 }
 
 func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 
 	rpath := r.Header.Get(PathHeader)
 	if rpath == "" {
-		http.Error(w, "No path header", http.StatusForbidden)
+		HttpResponse.Nopath.Error(w)
 		return
 	}
 
@@ -120,14 +128,15 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if NegCacheSeconds > 0 {
+		w.Header().Set("Cache-Control",
+			fmt.Sprintf("max-age=%d, must-revalidate", NegCacheSeconds))
+	}
+
 	tag := makeEtag(StartTimeMS, user, pass, rpath)
+	w.Header().Set("Etag", tag)
 	if UseEtag {
 		if !isModified(r.Header, tag) {
-			if CacheSeconds > 0 {
-				w.Header().Set("Cache-Control",
-					fmt.Sprintf("max-age=%d, must-revalidate", CacheSeconds))
-			}
-			w.Header().Set("Etag", tag)
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
@@ -139,7 +148,8 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok_authz {
-		http.Error(w, "Forbidden", http.StatusForbidden)
+		HttpResponse.Forbidden.Error(w)
+		return
 	}
 
 	if CacheSeconds > 0 {
@@ -147,5 +157,5 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("max-age=%d, must-revalidate", CacheSeconds))
 	}
 	w.Header().Set("Etag", tag)
-	io.WriteString(w, "Authorized\n")
+	HttpResponse.Ok.Error(w)
 }

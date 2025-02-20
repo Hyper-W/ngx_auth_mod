@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net/http"
 
 	"ngx_auth/etag"
@@ -52,25 +51,59 @@ func makeEtag(ms int64, user, rpath string) string {
 	return etag.Make(tm, etag.Crypt(tm, []byte(user)), []byte(pathid))
 }
 
+func isModified(hd http.Header, org_tag string) bool {
+	if_nmatch := hd.Get("If-None-Match")
+
+	if if_nmatch != "" {
+		return !isEtagMatch(if_nmatch, org_tag)
+	}
+
+	return true
+}
+
+func isEtagMatch(tag_str string, org_tag string) bool {
+	tags, _ := etag.Split(tag_str)
+	for _, tag := range tags {
+		if tag == org_tag {
+			return true
+		}
+	}
+
+	return false
+}
+
 func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 
 	rpath := r.Header.Get(PathHeader)
 	if rpath == "" {
-		http.Error(w, "No path header", http.StatusForbidden)
+		HttpResponse.Nopath.Error(w)
 		return
 	}
 
 	user := r.Header.Get(UserHeader)
 	if user == "" {
-		http.Error(w, "No user header", http.StatusForbidden)
+		HttpResponse.Nouser.Error(w)
 		return
 	}
+
+	if NegCacheSeconds > 0 {
+		w.Header().Set("Cache-Control",
+			fmt.Sprintf("max-age=%d, must-revalidate", NegCacheSeconds))
+	}
+
 	tag := makeEtag(StartTimeMS, user, rpath)
+	w.Header().Set("Etag", tag)
+	if UseEtag {
+		if !isModified(r.Header, tag) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
 
 	if !get_path_right(rpath, user) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
+		HttpResponse.Forbidden.Error(w)
 		return
 	}
 
@@ -79,5 +112,5 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("max-age=%d, must-revalidate", CacheSeconds))
 	}
 	w.Header().Set("Etag", tag)
-	io.WriteString(w, "Authorized\n")
+	HttpResponse.Ok.Error(w)
 }

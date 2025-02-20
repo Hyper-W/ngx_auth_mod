@@ -16,6 +16,7 @@ import (
 	"github.com/l4go/task"
 	"github.com/naoina/toml"
 
+	"ngx_auth/htstat"
 	"ngx_auth/ldap_auth"
 )
 
@@ -29,12 +30,14 @@ func warn(format string, v ...interface{}) {
 }
 
 type NgxLdapPathAuthConfig struct {
-	SocketType   string
-	SocketPath   string
-	CacheSeconds uint32 `toml:",omitempty"`
-	UseEtag      bool   `toml:",omitempty"`
-	AuthRealm    string `toml:",omitempty"`
-	PathHeader   string `toml:",omitempty"`
+	SocketType        string
+	SocketPath        string
+	CacheSeconds      uint32 `toml:",omitempty"`
+	NegCacheSeconds    uint32 `toml:",omitempty"`
+	UseEtag           bool   `toml:",omitempty"`
+	UseSerializedAuth bool   `toml:",omitempty"`
+	AuthRealm         string `toml:",omitempty"`
+	PathHeader        string `toml:",omitempty"`
 
 	Ldap struct {
 		HostUrl        string
@@ -55,12 +58,16 @@ type NgxLdapPathAuthConfig struct {
 		DefaultFilter string            `toml:",omitempty"`
 		PathFilter    map[string]string `toml:",omitempty"`
 	}
+
+	Response htstat.HttpStatusTbl `toml:",omitempty"`
 }
 
 var SocketType string
 var SocketPath string
 var CacheSeconds uint32
+var NegCacheSeconds uint32
 var UseEtag bool
+var UseSerializedAuth bool
 var AuthRealm string
 var LdapAuthConfig *ldap_auth.Config
 
@@ -73,6 +80,8 @@ var NomatchFilter string
 var BanDefault bool
 var DefaultFilter string
 var PathFilter map[string]string
+
+var HttpResponse htstat.HttpStatusTbl
 
 var StartTimeMS int64
 
@@ -111,7 +120,9 @@ func init() {
 	}
 
 	CacheSeconds = cfg.CacheSeconds
+	NegCacheSeconds = cfg.NegCacheSeconds
 	UseEtag = cfg.UseEtag
+	UseSerializedAuth = cfg.UseSerializedAuth
 
 	if cfg.AuthRealm == "" {
 		die("relm is required")
@@ -153,6 +164,13 @@ func init() {
 	}
 
 	PathFilter = cfg.Authz.PathFilter
+
+	cfg.Response.SetDefault()
+	if !cfg.Response.IsValid() {
+		die("response code config error.")
+		return
+	}
+	HttpResponse = cfg.Response
 
 	StartTimeMS = time.Now().UnixMicro()
 }

@@ -12,9 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/l4go/task"
 	"github.com/naoina/toml"
 
-	"github.com/l4go/task"
+	"ngx_auth/htstat"
 )
 
 func die(format string, v ...interface{}) {
@@ -27,18 +28,27 @@ func warn(format string, v ...interface{}) {
 }
 
 type TestAuthConfig struct {
-	SocketType   string
-	SocketPath   string
-	CacheSeconds uint `toml:",omitempty"`
-	Password     map[string]string
-	AuthRealm    string
+	SocketType     string
+	SocketPath     string
+	CacheSeconds   uint `toml:",omitempty"`
+	NegCacheSeconds uint `toml:",omitempty"`
+	UseEtag        bool `toml:",omitempty"`
+	Password       map[string]string
+	AuthRealm      string
+
+	Response htstat.HttpStatusTbl `toml:",omitempty"`
 }
 
 var SocketType string
 var SocketPath string
 var CacheSeconds uint = 0
+var NegCacheSeconds uint = 0
+var UseEtag bool
+
 var Password map[string]string
 var AuthRealm string
+
+var HttpResponse htstat.HttpStatusTbl
 
 var StartTimeMS int64
 
@@ -77,12 +87,21 @@ func init() {
 	}
 
 	CacheSeconds = cfg.CacheSeconds
+	NegCacheSeconds = cfg.NegCacheSeconds
+	UseEtag = cfg.UseEtag
 
 	if cfg.AuthRealm == "" {
 		die("relm is required")
 	}
 	AuthRealm = cfg.AuthRealm
 	Password = cfg.Password
+
+	cfg.Response.SetDefault()
+	if !cfg.Response.IsValid() {
+		die("response code config error.")
+		return
+	}
+	HttpResponse = cfg.Response
 
 	StartTimeMS = time.Now().UnixMicro()
 }

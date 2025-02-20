@@ -4,14 +4,18 @@ import (
 	"os"
 
 	"github.com/naoina/toml"
+
+	"ngx_auth/htstat"
 )
 
 type NgxLdapAuthConfig struct {
-	SocketType   string
-	SocketPath   string
-	CacheSeconds uint32 `toml:",omitempty"`
-	UseEtag      bool   `toml:",omitempty"`
-	AuthRealm    string `toml:",omitempty"`
+	SocketType        string
+	SocketPath        string
+	CacheSeconds      uint32 `toml:",omitempty"`
+	NegCacheSeconds    uint32 `toml:",omitempty"`
+	UseEtag           bool   `toml:",omitempty"`
+	UseSerializedAuth bool   `toml:",omitempty"`
+	AuthRealm         string `toml:",omitempty"`
 
 	HostUrl        string
 	StartTls       int      `toml:",omitempty"`
@@ -21,15 +25,19 @@ type NgxLdapAuthConfig struct {
 	BindDn         string
 	UniqFilter     string `toml:",omitempty"`
 	Timeout        int    `toml:",omitempty"`
+
+	Response htstat.HttpStatusTbl `toml:",omitempty"`
 }
 
 type NgxLdapPathAuthConfig struct {
-	SocketType   string
-	SocketPath   string
-	CacheSeconds uint32 `toml:",omitempty"`
-	UseEtag      bool   `toml:",omitempty"`
-	AuthRealm    string `toml:",omitempty"`
-	PathHeader   string `toml:",omitempty"`
+	SocketType        string
+	SocketPath        string
+	CacheSeconds      uint32 `toml:",omitempty"`
+	NegCacheSeconds    uint32 `toml:",omitempty"`
+	UseEtag           bool   `toml:",omitempty"`
+	UseSerializedAuth bool   `toml:",omitempty"`
+	AuthRealm         string `toml:",omitempty"`
+	PathHeader        string `toml:",omitempty"`
 
 	Ldap struct {
 		HostUrl        string
@@ -50,6 +58,8 @@ type NgxLdapPathAuthConfig struct {
 		DefaultRight  string            `toml:",omitempty"`
 		PathRight     map[string]string `toml:",omitempty"`
 	}
+
+	Response htstat.HttpStatusTbl `toml:",omitempty"`
 }
 
 func load_ldap_auth_config(file string) (*NgxLdapAuthConfig, error) {
