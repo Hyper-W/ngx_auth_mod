@@ -34,10 +34,10 @@ Below, configurations for nginx and ngx\_auth\_mod are described individually.
 
 To enable nginx caching, the following directives require setting.
 
-1. Use [proxy_temp_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_temp_path) to set the temporary storage area.
-2. Use [proxy_cache_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) to set a dedicated storage area for authentication results.
-3. Use [proxy_cache_revalidate](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_revalidate) to enable nginx cache validation.
-4. Use [proxy_cache_key](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_key) to set the cache key.
+1. Use [proxy\_temp\_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_temp_path) to set the temporary storage area.
+2. Use [proxy\_cache\_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) to set a dedicated storage area for authentication results.
+3. Use [proxy\_cache\_revalidate](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_revalidate) to enable nginx cache validation.
+4. Use [proxy\_cache\_key](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_key) to set the cache key.
 
 For security reasons, It is dangerous to mix the cache of authentication results with other caches.
 In addition, if the cache of authentication results is stored in a separate location, you may flush only cache the authentication results easily.
@@ -45,8 +45,8 @@ In addition, if the cache of authentication results is stored in a separate loca
 Since the configuration differs depending on the module used, the explanation is divided as follows.
 
 - nginx cache area settings (common settings for all modules)
-- `proxy_cache_key` setting for ngx_ldap_auth
-- `proxy_cache_key` settings other than ngx_ldap_auth
+- `proxy_cache_key` setting for ngx\_ldap\_auth
+- `proxy_cache_key` settings other than ngx\_ldap\_auth
 
 ### nginx cache area settings (common settings for all modules)
 
@@ -58,13 +58,13 @@ proxy_temp_path  /var/cache/nginx_tmp;
 proxy_cache_revalidate on;
 ```
 
-In this case, the `inactive` time of [proxy_cache_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) should not set long.
+In this case, the `inactive` time of [proxy\_cache\_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) should not set long.
 Too long `inactive` time will cause problems when changing authentication information.
 For example, the old password can be used to authenticate for a long time.
 
-### `proxy_cache_key` setting for ngx_ldap_auth
+### `proxy_cache_key` setting for ngx\_ldap\_auth
 
-[ngx_ldap_auth](ngx_ldap_auth.md) only handles the authentication process.
+[ngx\_ldap\_auth](ngx_ldap_auth.md) only handles the authentication process.
 Therefore, using the account name as the cache key reduces cache duplication and makes caching more efficient.
 Specifically, set it like `proxy_cache_key "$remote_user";`.
 
@@ -97,7 +97,7 @@ server {
 
 ### `proxy_cache_key` settings other than ngx\_ldap\_auth
 
-Modules other than ngx_ldap_auth (such as [ngx_ldap_path_auth](ngx_ldap_path_auth.md)) result in different authorization results depending on the URL path.
+Modules other than ngx\_ldap\_auth (such as [ngx\_ldap\_path\_auth](ngx_ldap_path_auth.md)) result in different authorization results depending on the URL path.
 Therefore, the URL path must be included in the cache key.
 For example, set it like `proxy_cache_key "$request_uri $remote_user";`.
 
@@ -195,18 +195,21 @@ The ngx\_auth\_mod cache configuration is divided into the following sections.
 
 The following modules of ngx\_auth\_mod support cache period setting.
 
-- [ngx_header_path_auth](ngx_header_path_auth.md)
-- [ngx_ldap_auth](ngx_ldap_auth.md)
-- [ngx_ldap_path_auth](ngx_ldap_path_auth.md)
-- [ngx_ldap_path2ldap_auth](ngx_ldap_path2ldap_auth.md)
+- [ngx\_header\_path\_auth](ngx_header_path_auth.md)
+- [ngx\_ldap\_auth](ngx_ldap_auth.md)
+- [ngx\_ldap\_path\_auth](ngx_ldap_path_auth.md)
+- [ngx\_ldap\_path2ldap\_auth](ngx_ldap_path2ldap_auth.md)
+- [ngx\_simple\_auth](ngx_simple_auth.md)
 
-The cache duration can be set in seconds with **cache\_seconds** parameter in the configuration file.
-However, if **cache\_seconds** parameter is set to 0, the cache will not be used.
+The cache duration when authentication is successful is set in seconds with **cache\_seconds** parameter in the configuration file.
+The cache duration when authentication fails is set in seconds with **neg\_cache\_seconds** parameter in the configuration file.
+However, if the **cache\_seconds** and **neg\_cache\_seconds** parameters are set to 0, the cache will not be used.
 
-Below is an example of setting it to 5 seconds.
+Below is an example of setting **cache\_seconds** to 5 seconds and **neg\_cache\_seconds** to 1 second.
 
 ```
 cache_seconds = 5
+neg_cache_seconds = 1
 ```
 
 ### Enabling cache validation
@@ -215,9 +218,9 @@ Caution: Without understanding, enabling cache validation can be dangerous.
 
 The following modules can enable cache validation using the `ETag` and `If-None-Match` headers.
 
-- [ngx_ldap_auth](ngx_ldap_auth.md)
-- [ngx_ldap_path_auth](ngx_ldap_path_auth.md)
-- [ngx_ldap_path2ldap_auth](ngx_ldap_path2ldap_auth.md)
+- [ngx\_ldap\_auth](ngx_ldap_auth.md)
+- [ngx\_ldap\_path\_auth](ngx_ldap_path_auth.md)
+- [ngx\_ldap\_path2ldap\_auth](ngx_ldap_path2ldap_auth.md)
 
 If the cache validation succeeds, the LDAP server call is skipped and the nginx cache period is updated.
 Therefore, it is used to further reduce the load on the LDAP server.

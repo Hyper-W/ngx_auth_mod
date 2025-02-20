@@ -1,12 +1,12 @@
 
 # 認証キャッシュ制御
 
-ngx\_auth\_modは、アクセス負荷が高い状況向けに、[nginx proxy module](http://nginx.org/en/docs/http/ngx_http_proxy_module.html)へ認証結果をキャッシュさせる仕組みを持っています。
+ngx\_auth\_modは、アクセス負荷が高い状況向けに、[nginx\ proxy\ module](http://nginx.org/en/docs/http/ngx_http_proxy_module.html)へ認証結果をキャッシュさせる仕組みを持っています。
 
 # キャッシュの無効化
 
 処理速度が十分であれば、キャッシュする必要はありません。
-そして、nginxの[auth request module](http://nginx.org/en/docs/http/ngx_http_auth_request_module.html)向けの認証結果を、理解なくキャッシュすると危険です。  
+そして、nginxの[auth\ request\ module](http://nginx.org/en/docs/http/ngx_http_auth_request_module.html)向けの認証結果を、理解なくキャッシュすると危険です。  
 ですから、もし、設定が難しいのなら、認証結果のキャッシュは無効にすべきです。
 
 ## nginxキャッシュの無効化
@@ -35,19 +35,19 @@ server {
 
 nginxのキャッシュを有効する為には、以下のディレクティブの設定が必要です。
 
-1. [proxy_temp_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_temp_path) 一時保存領域の設定をする。
-2. [proxy_cache_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) 認証結果専用の保存領域を設定する。
-3. [proxy_cache_revalidate](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_revalidate) nginxのキャッシュ検証を有効化する。
-4. [proxy_cache_key](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_key) キャッシュキーを設定する。
+1. [proxy\_temp\_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_temp_path) 一時保存領域の設定をする。
+2. [proxy\_cache\_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path) 認証結果専用の保存領域を設定する。
+3. [proxy\_cache\_revalidate](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_revalidate) nginxのキャッシュ検証を有効化する。
+4. [proxy\_cache\_key](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_key) キャッシュキーを設定する。
 
 セキュリティ上、認証結果のキャッシュを他のキャッシュと混ぜるのは危険です。
 また、認証結果のキャッシュの保存場所を分けておけば、認証結果だけを簡単に削除できます。
 
 利用するモジュールによって設定が違うので、以下のように分けて説明します。
 
--  nginxのキャッシュ領域の設定（全モジュール共通の設定）
-- ngx_ldap_auth向け`proxy_cache_key`設定
-- ngx_ldap_auth以外の`proxy_cache_key`設定
+- nginxのキャッシュ領域の設定（全モジュール共通の設定）
+- ngx\_ldap\_auth向け`proxy_cache_key`設定
+- ngx\_ldap\_auth以外の`proxy_cache_key`設定
 
 ### nginxのキャッシュ領域の設定（全モジュール共通の設定）
 
@@ -59,13 +59,13 @@ proxy_temp_path  /var/cache/nginx_tmp;
 proxy_cache_revalidate on;
 ```
 
-この用途では、[proxy_cache_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path)の`inactive`パラメータは、長くしてはいけません。
+この用途では、[proxy\_cache\_path](http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path)の`inactive`パラメータは、長くしてはいけません。
 長すぎる`inactive`パラメータは、認証情報の変更時に問題を起こします。
 例えば、長期間、古いパスワードで認証できてしまったりします。
 
-### ngx_ldap_auth向け`proxy_cache_key`設定
+### ngx\_ldap\_auth向け`proxy_cache_key`設定
 
-[ngx_ldap_auth](ngx_ldap_auth.md)は認証処理のみしかしていません。
+[ngx\_ldap\_auth](ngx_ldap_auth.md)は認証処理のみしかしていません。
 そのため、キャッシュキーをアカウント名にするとキャッシュの重複が減り、キャッシュの効率が良くなります。
 具体的には、`proxy_cache_key "$remote_user";`のように設定します。
 
@@ -90,7 +90,7 @@ server {
             proxy_set_header Context-Length "";
             proxy_pass_request_body off;
             proxy_pass http://$auth_req;
-f
+
             deny all;
     }
     # ...
@@ -99,7 +99,7 @@ f
 
 ### ngx\_ldap\_auth以外の`proxy_cache_key`設定
 
-ngx_ldap_auth以外のモジュール([ngx_ldap_path_auth](ngx_ldap_path_auth.md)など)は、URLのパスによって認可結果が変わります。
+ngx\_ldap\_auth以外のモジュール([ngx\_ldap\_path\_auth](ngx_ldap_path_auth.md)など)は、URLのパスによって認可結果が変わります。
 その為、URLパスをキャッシュキーに含めることが必要です。
 例えば、`proxy_cache_key "$request_uri $remote_user";`のように設定します。
 
@@ -150,7 +150,7 @@ server {
 1. [if](http://nginx.org/en/docs/http/ngx_http_rewrite_module.html#if)および[set](http://nginx.org/en/docs/http/ngx_http_rewrite_module.html#set)のnginxディレクティブをつかって、`$auth_path_id`変数を設定する。
 2. キャッシュキーに、`$auth_path_id`変数を利用する。
 
-この設定例では、ngx\_auth\_modのモジュールにに`path_pattern = "^/([^/]+)/"`の設定がされていることを前提にしていますので、適宜読み替えてください。  
+この設定例では、ngx\_auth\_modのモジュールに`path_pattern = "^/([^/]+)/"`の設定がされていることを前提にしていますので、適宜読み替えてください。  
 以下が、その設定例です。
 
 ```
@@ -197,18 +197,21 @@ ngx\_auth\_modのキャッシュ設定は、以下に分けて説明します。
 
 ngx\_auth\_modの以下のモジュールがキャッシュ期間の設定に対応しています。
 
-- [ngx_header_path_auth](ngx_header_path_auth.md)
-- [ngx_ldap_auth](ngx_ldap_auth.md)
-- [ngx_ldap_path_auth](ngx_ldap_path_auth.md)
-- [ngx_ldap_path2ldap_auth](ngx_ldap_path2ldap_auth.md)
+- [ngx\_header\_path\_auth](ngx_header_path_auth.md)
+- [ngx\_ldap\_auth](ngx_ldap_auth.md)
+- [ngx\_ldap\_path\_auth](ngx_ldap_path_auth.md)
+- [ngx\_ldap\_path2ldap\_auth](ngx_ldap_path2ldap_auth.md)
+- [ngx\_simple\_auth](ngx_simple_auth.md)
 
-キャッシュ期間は、設定ファイルの**cache\_seconds**パラメータで秒数で設定できます。
-ただし、**cache\_seconds**パラメータを0にした場合はキャッシュを利用しなくなります。
+認証成功時のキャッシュ期間は、設定ファイルの**cache\_seconds**パラメータに秒数で設定します。
+認証失敗時のキャッシュ期間は、設定ファイルの**neg\_cache\_seconds**パラメータに秒数で設定します。  
+**cache\_seconds**または**neg\_cache\_seconds**パラメータを0にした場合は、それぞれの場合でキャッシュを利用しなくなります。
 
-以下は、5秒に設定する場合の例です。
+以下は、**cache\_seconds**を5秒、**neg\_cache\_seconds**1秒に設定する例です。
 
 ```
 cache_seconds = 5
+neg_cache_seconds = 1
 ```
 
 ### キャッシュ検証の有効化方法
@@ -217,12 +220,14 @@ cache_seconds = 5
 
 以下のモジュールでは、`ETag`および`If-None-Match`ヘッダーを使ったキャッシュ検証を有効化できます。
 
-- [ngx_ldap_auth](ngx_ldap_auth.md)
-- [ngx_ldap_path_auth](ngx_ldap_path_auth.md)
-- [ngx_ldap_path2ldap_auth](ngx_ldap_path2ldap_auth.md)
+- [ngx\_simple\_auth](ngx_simple_auth.md)
+- [ngx\_header\_path\_auth](ngx_header_path_auth.md)
+- [ngx\_ldap\_auth](ngx_ldap_auth.md)
+- [ngx\_ldap\_path\_auth](ngx_ldap_path_auth.md)
+- [ngx\_ldap\_path2ldap\_auth](ngx_ldap_path2ldap_auth.md)
 
-キャッシュ検証が成功すると、LDAPサーバの呼び出しを省略し、nginxのキャッシュ期間が更新されます。
-そのため、LDAPサーバの負荷をさらに減らしたいときに使います。
+キャッシュ検証が成功すると、認証処理が省略されて、nginxのキャッシュ期間が更新されます。
+そのため、LDAPサーバの負荷をさらに減らしたいときなどに使います。
 
 キャッシュ検証を有効にする場合は、以下の設定を追加します。
 

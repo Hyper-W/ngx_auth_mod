@@ -1,6 +1,7 @@
+[auth request module]: http://nginx.org/en/docs/http/ngx_http_auth_request_module.html
 # ngx\_header\_path\_auth
 
-nginxのauth request moduleへ、ヘッダーに設定したユーザ名とパス情報を元にした認可を提供するモジュールです。
+nginxの[auth request module]へ、ヘッダーに設定したユーザ名とパス情報を元にした認可を提供するモジュールです。
 
 ## エラー処理
 
@@ -19,14 +20,16 @@ systemd等のプロセス管理のシステムから起動してください。
 
 ## 設定ファイル書式
 
-nginx側の設定方法については、[auth request moduleのドキュメント](http://nginx.org/en/docs/http/ngx_http_auth_request_module.html)を参照してください。
+nginx側の設定方法については、[auth request module]のドキュメントを参照してください。
 
-ngx_header_path_autuの設定ファイルは、TOMLフォーマットで、以下がサンプルです。
+ngx\_header\_path\_authの設定ファイルは、TOMLフォーマットで、以下がサンプルです。
 
 ```ini
 socket_type = "tcp"
 socket_path = "127.0.0.1:9202"
 #cache_seconds = 0
+#neg_cache_seconds = 0
+#use_etag = false
 path_header = "X-Authz-Path"
 user_header = "X-Forwarded-User"
 
@@ -39,6 +42,22 @@ default_right = "*/
 
 [authz.path_right]
 "test" = "@dev"
+
+#[response.ok]
+#code=200
+#message="Authorized"
+
+#[response.forbidden]
+#code=403
+#message="Forbidden"
+
+#[response.nopath]
+#code=403
+#message="No path header"
+
+#[response.nouser]
+#code=403
+#message="No user header"
 ```
 
 設定ファイルの各パラメータの意味は以下のとおりです。
@@ -49,9 +68,11 @@ default_right = "*/
 | :--- | :--- |
 | **socket\_type** | tcp(TCPソケット)とunix(Unixドメインソケット)が指定できます。 |
 | **socket\_path** | tcpの場合はIPアドレスとポート番号、unixの場合はソケットファイルのファイルパスを指定します。 |
-| **cache\_seconds** | nginxに渡すキャッシュ期間の秒数です。ただし、その値が0の場合、キャッシュを利用しなくなります。<br>詳細については[認証キャッシュ制御](proxy_cache.md)を参照してください。 |
-| **path\_header** | 認可処理の使うパスを設定するHTTPヘッダーです。デフォルト値は`X-Authz-Path`です。nginxの設定ファイルの適切な箇所で、`proxy_set_header X-Authz-Path $request_uri;`などのように、ヘッダーの値を設定してください。 |
-| **user\_header** | ユーザ名を設定するHTTPヘッダーです。デフォルト値は`X-Forwarded-User`です。nginxの設定ファイルの適切な箇所で、`proxy_set_header X-Forwarded-User $remote_user;`などのように、ヘッダーの値を設定してください。 |
+| **cache\_seconds** | 認証成功時にnginxに渡される秒のキャッシュ期間です。その値が0の場合、キャッシュを利用しなくなります。<br>詳細については[認証キャッシュ制御](proxy_cache.md)を参照してください。 |
+| **neg\_cache\_seconds** | 認証失敗時にnginxに渡される秒のキャッシュ期間です。その値が0の場合、キャッシュを利用しなくなります。<br>詳細については[認証キャッシュ制御](proxy_cache.md)を参照してください。 |
+| **use\_etag** | `ETag`タグを使ったキャッシュの検証を行いたい場合は、`true`に設定してください。<br>詳細については[認証キャッシュ制御](proxy_cache.md)を参照してください。 |
+| **path\_header** | 認可処理の使うパスを設定するHTTPヘッダーです。デフォルト値は`X-Authz-Path`です。nginxの設定ファイルの適切な箇所で、`proxy_set_header X-Authz-Path $request_uri;`などのように、HTTPヘッダーを設定してください。 |
+| **user\_header** | ユーザ名を設定するHTTPヘッダーです。デフォルト値は`X-Forwarded-User`です。nginxの設定ファイルの適切な箇所で、`proxy_set_header X-Forwarded-User $remote_user;`などのように、HTTPヘッダーを設定してください。 |
 
 ### **\[authz\]** 部分
 
@@ -64,6 +85,34 @@ default_right = "*/
 | **default\_right** | **path\_pattern**の正規表現のマッチが成功し、かつ、**path\_right**に正規表現で抽出された文字列がマッチしない場合の、認可権限の設定です。認可権限の書き方は、詳しくは「認可権限の詳細」の説明を見てください。 |
 | **path\_right** | **path\_pattern**の正規表現のマッチに成功したときの、パスごとの認可権限の設定です。正規表現で抽出された文字列をキーとして認可権限を指定します。個々の認可権限の書き方は、詳しくは「認可権限の詳細」の説明を見てください。 |
 
+### **\[response.ok\]** 部分
+
+|パラメータ名|意味|
+| :--- | :--- |
+| **code** | 認可された時のHTTP レスポンスステータスコード(デフォルト値は`200`)<br>この値は[auth request module]によって利用されるため、変更すると誤動作の可能性があります。 |
+| **message** | 認可された時のHTTP レスポンスメッセージ(デフォルト値は`"Authorized"`) |
+
+### **\[response.forbidden\]** 部分
+
+|パラメータ名|意味|
+| :--- | :--- |
+| **code** | 認可失敗時のHTTP レスポンスステータスコード(デフォルト値は`403`)<br>この値は[auth request module]によって利用されるため、変更すると誤動作の可能性があります。 |
+| **message** | 認可失敗時のHTTP レスポンスメッセージ(デフォルト値は`"Forbidden"`) |
+
+### **\[response.nopath\]** 部分
+
+|パラメータ名|意味|
+| :--- | :--- |
+| **code** | **path\_header**で想定していないHTTPヘッダーである場合のHTTP レスポンスステータスコード(デフォルト値は`403`)<br>この値は[auth request module]によって利用されるため、変更すると誤動作の可能性があります。 |
+| **message** | **path\_header**で想定していないHTTPヘッダーである場合のHTTP レスポンスステータスコード(デフォルト値は`"No path header"`) |
+
+### **\[response.nouser\]** 部分
+
+|パラメータ名|意味|
+| :--- | :--- |
+| **code** | **user\_header**で想定していないHTTPヘッダーである場合のHTTP レスポンスステータスコード(デフォルト値は`403`)<br>この値は[auth request module]によって利用されるため、変更すると誤動作の可能性があります。 |
+| **message** | **user\_header**で想定していないHTTPヘッダーである場合のHTTP レスポンスステータスコード(デフォルト値は`"No user header"`) |
+
 ## 認可権限の詳細
 
 **\[authz\]**の**nomatch\_right**、**default\_right**、**path\_right**のテーブルの各要素の値は、以下の判定処理の記述を|で結合した文字列を指定します。結合した判定処理は倫理和(or)>で処理されます。判定結果が正常にならない場合は、スクリプトは実行されません。
@@ -73,13 +122,13 @@ default_right = "*/
 | 空文字 | ユーザー名に関係なく正常と判断します。 |
 | `!` | ユーザ名に関係なく異常と判断します。 |
 | `*` | ユーザ名が正常なものであれば、正常と判断します。 |
-| `@グループ名` | @の後ろのグループ名のグループに利用者のユーザ名が含まれる場合に正常と判断します。グループは**user_map**パラメータのファイルで定義します |
-| `@` (@のみ、グループ名無し) |  **user_map**に利用者のユーザ名が記述されていれば、正常と判断します。 |
+| `@グループ名` | @の後ろのグループ名のグループに利用者のユーザ名が含まれる場合に正常と判断します。グループは**user\_map**パラメータのファイルで定義します |
+| `@` (@のみ、グループ名無し) |  **user\_map**に利用者のユーザ名が記述されていれば、正常と判断します。 |
 | ユーザ名 | 利用者のユーザ名と一致する場合に正常と判断します。 |
 
 ## **user\_map**の詳細
 
-**user\_map**で指定されたファイルで、ユーザ名とグループ名のマッピングを行います。  
+**user\_map**で指定されたファイルを使って、ユーザ名とグループ名のマッピングを行います。  
 このファイルはテキストファイルで、各行にユーザ名とその所属するグループ名(無し及び複数も可)を記述こと>で、ユーザ名とグループ名のマッピングを表現します。
 
 各行は以下のような書式になります。

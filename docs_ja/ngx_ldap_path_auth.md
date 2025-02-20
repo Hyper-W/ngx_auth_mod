@@ -1,6 +1,7 @@
+[auth request module]: http://nginx.org/en/docs/http/ngx_http_auth_request_module.html
 # ngx\_ldap\_path\_auth
 
-nginxの[auth request module](http://nginx.org/en/docs/http/ngx_http_auth_request_module.html)に、LDAPのbind処理の結果を流用して認証と、ヘッダーに設定したパス情報を元にした認可を提供するモジュールです。
+nginxの[auth request module]に、LDAPのbind処理の結果を流用して認証と、ヘッダーに設定したパス情報を元にした認可を提供するモジュールです。
 
 ## エラー処理
 
@@ -23,7 +24,7 @@ LDAPの情報で認証ユーザを制限したい場合は、LDAPのsearch処理
 
 ## 設定ファイル書式
 
-nginx側の設定方法については、[auth request moduleのドキュメント](http://nginx.org/en/docs/http/ngx_http_auth_request_module.html)を参照してください。
+nginx側の設定方法については、[auth request module]のドキュメントを参照してください。
 
 **ngx\_ldap\_path\_auth**の設定ファイルは、TOMLフォーマットで、以下がサンプルです。
 
@@ -31,7 +32,9 @@ nginx側の設定方法については、[auth request moduleのドキュメン�
 socket_type = "tcp"
 socket_path = "127.0.0.1:9201"
 #cache_seconds = 0
-#use_etag = true
+#neg_cache_seconds = 0
+#use_etag = false
+#use_serialized_auth = false
 auth_realm = "TEST Authentication"
 path_header = "X-Authz-Path"
 
@@ -58,6 +61,22 @@ default_right = "*"
 
 [authz.path_right]
 "test" = "@dev"
+
+#[response.ok]
+#code=200
+#message="Authorized"
+
+#[response.unauth]
+#code=401
+#message="Not authenticated"
+
+#[response.forbidden]
+#code=403
+#message="Forbidden"
+
+#[response.nopath]
+#code=403
+#message="No path header"
 ```
 
 設定ファイルの各パラメータの意味は以下のとおりです。
@@ -68,10 +87,12 @@ default_right = "*"
 | :--- | :--- |
 | **socket\_type** | tcp(TCPソケット)とunix(Unixドメインソケット)が指定できます。 |
 | **socket\_path** | tcpの場合はIPアドレスとポート番号、unixの場合はソケットファイルのファイルパスを指定します。 |
-| **cache\_seconds** | nginxに渡すキャッシュ期間の秒数です。ただし、その値が0の場合、キャッシュを利用しなくなります。<br>詳細については[認証キャッシュ制御](proxy_cache.md)を参照してください。 |
-| **use_etag** | `true`に設定すると`ETag`タグを使ったキャッシュの検証を行なうようになります。<br>詳細については[認証キャッシュ制御](proxy_cache.md)を参照してください。 |
+| **cache\_seconds** | 認証成功時にnginxに渡される秒のキャッシュ期間です。その値が0の場合、キャッシュを利用しなくなります。<br>詳細については[認証キャッシュ制御](proxy_cache.md)を参照してください。 |
+| **neg\_cache\_seconds** | 認証失敗時にnginxに渡される秒のキャッシュ期間です。その値が0の場合、キャッシュを利用しなくなります。<br>詳細については[認証キャッシュ制御](proxy_cache.md)を参照してください。 |
+| **use\_etag** | `ETag`タグを使ったキャッシュの検証を行いたい場合は、`true`に設定してください。<br>詳細については[認証キャッシュ制御](proxy_cache.md)を参照してください。 |
+| **use\_serialized\_auth** | 認証を各アカウント毎に直列化したい場合は、`true`に設定してください。<br>同じアカウントの認証が衝突した場合、ブロックして遅延させます。 |
 | **auth\_realm** | HTTPのrealmの文字列です。 |
-| **path\_header** | 認可処理の使うパスを設定するHTTPヘッダーです。デフォルト値は`X-Authz-Path`です。nginxの設定ファイルの適切な箇所で、`proxy_set_header X-Authz-Path $request_uri;`などのように、ヘッダーの値を設定してください。 |
+| **path\_header** | 認可処理の使うパスを設定するHTTPヘッダーです。デフォルト値は`X-Authz-Path`です。nginxの設定ファイルの適切な箇所で、`proxy_set_header X-Authz-Path $request_uri;`などのように、HTTPヘッダーを設定してください。 |
 
 ### **\[ldap\]** 部分
 
@@ -96,7 +117,35 @@ default_right = "*"
 | **nomatch\_right** | **path\_pattern**の正規表現のマッチが失敗した場合の認可権限です。認可権限の詳細は、「認可権限の詳細」の説明を見てください。 |
 | **default\_right** | **path\_pattern**の正規表現のマッチが成功し、かつ、**path\_right**に該当のキーが無い場合の、認可権限です。認可権限の詳細は、「認可権限の詳細」の説明を見てください。 |
 | **path\_right** | **path\_pattern**の正規表現のマッチに成功したときの、抽出文字列ごとの認可権限の設定です。抽出文字列をキーとして指定します。認可権限の詳細は、「認可権限の詳細」の説明を見てください。 |
- 
+
+### **\[response.ok\]** 部分
+
+|パラメータ名|意味|
+| :--- | :--- |
+| **code** | 認可された時のHTTP レスポンスステータスコード(デフォルト値は`200`)<br>この値は[auth request module]によって利用されるため、変更すると誤動作の可能性があります。 |
+| **message** | 認可された時のHTTP レスポンスメッセージ(デフォルト値は`"Authorized"`) |
+
+### **\[response.unauth\]** 部分
+
+|パラメータ名|意味|
+| :--- | :--- |
+| **code** | 未認証時のHTTP レスポンスステータスコード(デフォルト値は`401`)<br>この値は[auth reque  st module]によって利用されるため、変更すると誤動作の可能性があります。 | 
+| **message** | 未認証時のHTTP レスポンスメッセージ(デフォルト値は`"Not authenticated"`) |
+
+### **\[response.forbidden\]** 部分
+
+|パラメータ名|意味|
+| :--- | :--- |
+| **code** | 認可失敗時のHTTP レスポンスステータスコード(デフォルト値は`403`)<br>この値は[auth request module]によって利用されるため、変更すると誤動作の可能性があります。 |
+| **message** | 認可失敗時のHTTP レスポンスメッセージ(デフォルト値は`"Forbidden"`) |
+
+### **\[response.nopath\]** 部分
+
+|パラメータ名|意味|
+| :--- | :--- |
+| **code** | **path\_header**で想定していないHTTPヘッダーである場合のHTTP レスポンスステータスコード(デフォルト値は`403`)<br>この値は[auth request module]によって利用されるため、変更すると誤動作の可能性があります。 |
+| **message** | **path\_header**で想定していないHTTPヘッダーである場合のHTTP レスポンスステータスコード(デフォルト値は`"No path header"`) |
+
 ## 認可権限の詳細
 
 **\[authz\]**の**nomatch\_right**、**default\_right**、**path\_right**のテーブルの各要素の値は、以下の判定処理の記述を|で結合した文字列を指定します。結合された判定処理は、倫理和(or)で計算します。結果が真の場合は、認可されます。
@@ -106,8 +155,8 @@ default_right = "*"
 | 空文字 | ユーザー名に関係なく真と判断します。 |
 | `!` | ユーザ名に関係なく偽と判断します。 |
 | `*` | ユーザ名が存在すれば、真と判断します。 |
-| `@グループ名` | @の後ろをグループ名として扱い、そのグループにユーザが含まれる場合に真と判断します。グループは**user_map**ファイルで定義します。 |
-| `@` | (@のみ、グループ名無し) **user_map**ファイルに利用者のユーザ名が記述されていれば、真と判断します。 |
+| `@グループ名` | @の後ろをグループ名として扱い、そのグループにユーザが含まれる場合に真と判断します。グループは**user\_map**ファイルで定義します。 |
+| `@` | (@のみ、グループ名無し) **user\_map**ファイルに利用者のユーザ名が記述されていれば、真と判断します。 |
 | ユーザ名 | 利用者のユーザ名と一致する場合に真と判断します。 |
 
 ## **user\_map**ファイルの詳細
