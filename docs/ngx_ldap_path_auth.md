@@ -1,6 +1,7 @@
+[auth request module]: http://nginx.org/en/docs/http/ngx_http_auth_request_module.html
 # ngx\_ldap\_path\_auth
 
-**ngx\_ldap\_path\_auth** is a module for [nginx auth request module](http://nginx.org/en/docs/http/ngx_http_auth_request_module.html) that authenticates using an LDAP bind operation, and authorizes by file path.
+**ngx\_ldap\_path\_auth** is a module for nginx [auth request module] that authenticates using an LDAP bind operation, and authorizes by file path.
 
 ## Error handling
 
@@ -23,7 +24,7 @@ If you don't need file path authorization, use the [ngx\_ldap\_auth](ngx_ldap_au
 
 ## Configuration file format
 
-See the [auth request module documentation](http://nginx.org/en/docs/http/ngx_http_auth_request_module.html) for how to configure nginx.
+See the [auth request module] documentation for how to configure nginx.
 
 The **ngx\_ldap\_path\_auth** configuration file is in TOML format, and the following is a sample configuration file.
 
@@ -31,7 +32,8 @@ The **ngx\_ldap\_path\_auth** configuration file is in TOML format, and the foll
 socket_type = "tcp"
 socket_path = "127.0.0.1:9201"
 #cache_seconds = 0
-#use_etag = true
+#use_etag = false
+#use_serialized_auth = false
 auth_realm = "TEST Authentication"
 path_header = "X-Authz-Path"
 
@@ -57,6 +59,22 @@ default_right = "*"
 
 [authz.path_right]
 "test" = "@dev"
+
+#[response.ok]
+#code=200
+#message="Authorized"
+
+#[response.unauth]
+#code=401
+#message="Not authenticated"
+
+#[response.forbidden]
+#code=403
+#message="Forbidden"
+
+#[response.nopath]
+#code=403
+#message="No path header"
 ```
 
 Each parameter of the configuration file is as follows.
@@ -67,8 +85,10 @@ Each parameter of the configuration file is as follows.
 | :--- | :--- |
 | **socket\_type** | Set this parameter to tcp(TCP socket) or unix(UNIX domain socket). |
 | **socket\_path** | Set the IP address and port number for tcp, and UNIX domain socket file path for unix. |
-| **cache\_seconds** | The cache duration in seconds to pass to nginx. However, if its value is 0, it will not use the cache.<br>See [Authentication Cache Control](proxy_cache.md) for details.|
-| **use_etag** | Set to `true` to enable cache validation using `ETag` tags.<br>See [Authentication Cache Control](proxy_cache.md) for details.|
+| **cache\_seconds** | Cache duration in seconds passed to nginx upon successful authentication. If the value is 0, cache will not be used. <br>See [Authentication Cache Control](proxy_cache.md) for details. |
+| **neg\_cache\_seconds** | Cache duration in seconds passed to nginx upon failed authentication. If the value is 0, cache will not be used. <br>See [Authentication Cache Control](proxy_cache.md) for details. |
+| **use\_etag** | Set to `true` if you want to validate the cache using the `ETag` tag. <br>See [Authentication Cache Control](proxy_cache.md) for details. |
+| **use\_serialized\_auth** | Set to `true` if you want authentication to be serialized for each account. <br>When authentications for the same account conflict, the authentication will be blocked and delayed. |
 | **auth\_realm** | HTTP realm string. |
 | **path\_header** | A HTTP header that sets the path used for authorization processing. The default value is `X-Authz-Path`. In the appropriate place of the nginx configuration file, use `proxy_set_header` directive to set the HTTP header. (Eg `proxy_set_header X-Authz-Path $request_uri;`) |
 
@@ -90,11 +110,39 @@ Each parameter of the configuration file is as follows.
 | Parameter | Description |
 | :--- | :--- |
 | **user\_map\_config** | A file that specifies how user names and group names are handled in **user\_map**.  More on this in the "_**user\_map\_config** file details_" section. |
-| **user_map** | User name and group name mapping file. More on this in the "_**user\_map** file details_" section. |
-| **path\_pattern** | A regular expression that extracts the authorization judgment string from the path of the header specified by **path_header**. The extracted string is used for the key in **path\_right**. Use the `()` subexpression regular expression only once to specify the extraction location. |
+| **user\_map** | User name and group name mapping file. More on this in the "_**user\_map** file details_" section. |
+| **path\_pattern** | A regular expression that extracts the authorization judgment string from the path of the header specified by **path\_header**. The extracted string is used for the key in **path\_right**. Use the `()` subexpression regular expression only once to specify the extraction location. |
 | **nomatch\_right** | Authorization rights when the **path\_pattern** regular expression is not matched. For more information on authorization rights, see "_Authorization rights details_" section. |
 | **default\_right** | Authorization rights when it matches the **path\_pattern** regular expression and is not specified in **path\_right**. For more information on authorization rights, see "_Authorization rights details_". |
 | **path\_right** | Authorization rights map for each extracted string when matching **path\_pattern** regular expression. Specify the extraction string as the key. For more information on authorization rights, see "_Authorization rights details_" section. |
+
+### **\[response.ok\]** part
+
+| Parameter | Description |
+| :--- | :--- |
+| **code** | The HTTP response status code indicates authorized requests. (Default value: `200`)<br>This value is used by the [auth request module]. Therefore, Malfunctions may be caused by the incorrect setting value. |
+| **message** |  The HTTP response message indicates authorized requests. (Default value: `"Authorized"`) |
+
+### **\[response.unauth\]** part
+
+| Parameter | Description |
+| :--- | :--- |
+| **code** | The HTTP response status code indicates unauthenticated requests. (Default value: `401`)<br>This value is used by the [auth request module]. Therefore, Malfunctions may be caused by the incorrect setting value. |
+| **message** | The HTTP response message indicates unauthenticated requests. (Default value: `"Not authenticated"`) |
+
+### **\[response.forbidden\]** part
+
+| Parameter | Description |
+| :--- | :--- |
+| **code** | The HTTP response status code indicates failed authorization requests. (Default value: `403`)<br>This value is used by the [auth request module]. Therefore, Malfunctions may be caused by the incorrect setting value. |
+| **message** | The HTTP response message indicates failed authorization requests. (Default value: `"Forbidden"`) |
+
+### **\[response.nopath\]** part
+
+| Parameter | Description |
+| :--- | :--- |
+| **code** | The HTTP response status code indicates an unexpected HTTP header in **path\_header**. (Default value: `403`)<br>This value is used by the [auth request module]. Therefore, Malfunctions may be caused by the incorrect setting value. |
+| **message** | The HTTP response message indicates an unexpected HTTP header in **path\_header**. (Default value: `"No path header"`) |
 
 ## Authorization rights details
 
@@ -106,8 +154,8 @@ In **\[authz\]** part, **nomatch\_right**, **default\_right**, and **path\_right
 | empty string | Always considers true regardless of the user name. |
 | `!` | Always considers false regardless of the user name. |
 | `*` | If the user name exists, it is considered true. |
-| `@groupname` | The character string after @ is treated as a group name. True if the group contains users. Groups are defined in the **user_map** file. |
-| `@` (no group name) | True if the user is described in the **user_map** file. |
+| `@groupname` | The character string after @ is treated as a group name. True if the group contains users. Groups are defined in the **user\_map** file. |
+| `@` (no group name) | True if the user is described in the **user\_map** file. |
 | user name | True if the user name matches. |
 
 ## **user\_map** file details

@@ -17,6 +17,7 @@ import (
 	"github.com/naoina/toml"
 
 	"ngx_auth/authz"
+	"ngx_auth/htstat"
 )
 
 func die(format string, v ...interface{}) {
@@ -29,11 +30,13 @@ func warn(format string, v ...interface{}) {
 }
 
 type NgxHeaderPathAuthConfig struct {
-	SocketType   string
-	SocketPath   string
-	CacheSeconds uint32 `toml:",omitempty"`
-	PathHeader   string `toml:",omitempty"`
-	UserHeader   string `toml:",omitempty"`
+	SocketType     string
+	SocketPath     string
+	CacheSeconds   uint32 `toml:",omitempty"`
+	NegCacheSeconds uint32 `toml:",omitempty"`
+	UseEtag        bool   `toml:",omitempty"`
+	PathHeader     string `toml:",omitempty"`
+	UserHeader     string `toml:",omitempty"`
 
 	Authz struct {
 		UserMapConfig string `toml:",omitempty"`
@@ -43,11 +46,15 @@ type NgxHeaderPathAuthConfig struct {
 		DefaultRight  string            `toml:",omitempty"`
 		PathRight     map[string]string `toml:",omitempty"`
 	}
+
+	Response htstat.HttpStatusTbl `toml:",omitempty"`
 }
 
 var SocketType string
 var SocketPath string
 var CacheSeconds uint32
+var NegCacheSeconds uint32
+var UseEtag bool
 
 var PathHeader = "X-Authz-Path"
 var PathPatternReg *regexp.Regexp
@@ -57,6 +64,8 @@ var UserMap *authz.UserMap = nil
 var NomatchRight string
 var DefaultRight string
 var PathRight map[string]string
+
+var HttpResponse htstat.HttpStatusTbl
 
 var StartTimeMS int64
 
@@ -95,6 +104,8 @@ func init() {
 	}
 
 	CacheSeconds = cfg.CacheSeconds
+	NegCacheSeconds = cfg.NegCacheSeconds
+	UseEtag = cfg.UseEtag
 
 	if cfg.PathHeader != "" {
 		PathHeader = cfg.PathHeader
@@ -140,6 +151,13 @@ func init() {
 			die("bad path_right parameter: %s -> %s", p, r)
 		}
 	}
+
+	cfg.Response.SetDefault()
+	if !cfg.Response.IsValid() {
+		die("response code config error.")
+		return
+	}
+	HttpResponse = cfg.Response
 
 	StartTimeMS = time.Now().UnixMicro()
 }
