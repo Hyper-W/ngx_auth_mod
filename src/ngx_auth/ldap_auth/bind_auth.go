@@ -9,6 +9,8 @@ import (
 	"time"
 	"unicode"
 
+	logger "ngx_auth/logger"
+
 	ldap "github.com/go-ldap/ldap/v3"
 )
 
@@ -70,11 +72,13 @@ func replace_user(val_fmt string, user string) string {
 }
 
 func NewLdapAuth(cfg *Config) (*LdapAuth, error) {
+
 	ca_pool := x509.NewCertPool()
 	if len(cfg.RootCaFiles) > 0 {
 		for _, fn := range cfg.RootCaFiles {
 			ca_pem, e := ioutil.ReadFile(fn)
 			if e != nil {
+				logger.LogWithTime("LDAP CA file read error: file=%s err=%v", fn, e)
 				return nil, e
 			}
 			ca_pool.AppendCertsFromPEM(ca_pem)
@@ -83,6 +87,7 @@ func NewLdapAuth(cfg *Config) (*LdapAuth, error) {
 		var e error
 		ca_pool, e = x509.SystemCertPool()
 		if e != nil {
+			logger.LogWithTime("LDAP system cert pool error: err=%v", e)
 			return nil, e
 		}
 	}
@@ -94,12 +99,14 @@ func NewLdapAuth(cfg *Config) (*LdapAuth, error) {
 
 	l, lerr := ldap.DialURL(cfg.HostUrl, ldap.DialWithTLSConfig(tls_cfg))
 	if lerr != nil {
+		logger.LogWithTime("LDAP dial error: host=%s err=%v", cfg.HostUrl, lerr)
 		return nil, lerr
 	}
 
 	if cfg.StartTls {
 		e := l.StartTLS(tls_cfg)
 		if e != nil {
+			logger.LogWithTime("LDAP StartTLS error: host=%s err=%v", cfg.HostUrl, e)
 			return nil, e
 		}
 	}
@@ -113,7 +120,9 @@ func NewLdapAuth(cfg *Config) (*LdapAuth, error) {
 	return &LdapAuth{cfg: cfg, conn: l}, nil
 }
 func (lba *LdapAuth) Close() {
-	lba.conn.Close()
+	if lba.conn != nil {
+		lba.conn.Close()
+	}
 }
 
 func (lba *LdapAuth) new_search_param(flt_pat string, user string) *ldap.SearchRequest {
@@ -132,25 +141,32 @@ func (lba *LdapAuth) new_search_param(flt_pat string, user string) *ldap.SearchR
 
 func (lba *LdapAuth) Authenticate(user, pass string) (bool, bool, error) {
 	bind_dn := replace_user(lba.cfg.BindDn, user)
-	if lba.conn.Bind(bind_dn, pass) != nil {
+	if err := lba.conn.Bind(bind_dn, pass); err != nil {
+		logger.LogWithTime("LDAP bind failed: bind_dn=%s user=%s err=%v", bind_dn, user, err)
 		return false, false, nil
 	}
+
+	logger.LogWithTime("LDAP bind succeeded: bind_dn=%s user=%s", bind_dn, user)
 
 	if lba.cfg.UniqueFilter != "" {
 		res, e := lba.conn.Search(lba.new_search_param(lba.cfg.UniqueFilter, user))
 		if e != nil {
+			logger.LogWithTime("LDAP unique filter search error: user=%s filter=%s err=%v", user, lba.cfg.UniqueFilter, e)
 			return false, false, e
 		}
 		if len(res.Entries) != 1 {
+			logger.LogWithTime("LDAP unique filter no match: user=%s filter=%s entries=%d", user, lba.cfg.UniqueFilter, len(res.Entries))
 			return false, false, nil
 		}
 	}
 	if lba.cfg.AuthzFilter != "" {
 		res, e := lba.conn.Search(lba.new_search_param(lba.cfg.AuthzFilter, user))
 		if e != nil {
+			logger.LogWithTime("LDAP authz filter search error: user=%s filter=%s err=%v", user, lba.cfg.AuthzFilter, e)
 			return true, false, e
 		}
 		if len(res.Entries) != 1 {
+			logger.LogWithTime("LDAP authz filter no match: user=%s filter=%s entries=%d", user, lba.cfg.AuthzFilter, len(res.Entries))
 			return true, false, nil
 		}
 	}
