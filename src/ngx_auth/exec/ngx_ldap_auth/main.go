@@ -5,18 +5,22 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/l4go/task"
-	"github.com/naoina/toml"
 
 	"ngx_auth/htstat"
 	"ngx_auth/ldap_auth"
+
+	cfgloader "ngx_auth/config_loader"
+	logger "ngx_auth/logger"
 )
 
 func die(format string, v ...interface{}) {
@@ -29,24 +33,28 @@ func warn(format string, v ...interface{}) {
 }
 
 type NgxLdapAuthConfig struct {
-	SocketType        string
-	SocketPath        string
-	CacheSeconds      uint32 `toml:",omitempty"`
-	NegCacheSeconds    uint32 `toml:",omitempty"`
-	UseEtag           bool   `toml:",omitempty"`
-	UseSerializedAuth bool   `toml:",omitempty"`
-	AuthRealm         string `toml:",omitempty"`
+	SocketType        string `json:"socket_type" yaml:"socket_type"`
+	SocketPath        string `json:"socket_path" yaml:"socket_path"`
+	CacheSeconds      uint32 `toml:",omitempty" json:"cache_seconds,omitempty" yaml:"cache_seconds,omitempty"`
+	NegCacheSeconds   uint32 `toml:",omitempty" json:"neg_cache_seconds,omitempty" yaml:"neg_cache_seconds,omitempty"`
+	UseEtag           bool   `toml:",omitempty" json:"use_etag,omitempty" yaml:"use_etag,omitempty"`
+	UseSerializedAuth bool   `toml:",omitempty" json:"use_serialized_auth,omitempty" yaml:"use_serialized_auth,omitempty"`
+	AuthRealm         string `toml:",omitempty" json:"auth_realm,omitempty" yaml:"auth_realm,omitempty"`
 
-	HostUrl        string
-	StartTls       int      `toml:",omitempty"`
-	SkipCertVerify int      `toml:",omitempty"`
-	RootCaFiles    []string `toml:",omitempty"`
-	BaseDn         string
-	BindDn         string
-	UniqFilter     string `toml:",omitempty"`
-	Timeout        int    `toml:",omitempty"`
+	HostUrl        string   `json:"host_url" yaml:"host_url"`
+	StartTls       int      `toml:",omitempty" json:"start_tls,omitempty" yaml:"start_tls,omitempty"`
+	SkipCertVerify int      `toml:",omitempty" json:"skip_cert_verify,omitempty" yaml:"skip_cert_verify,omitempty"`
+	RootCaFiles    []string `toml:",omitempty" json:"root_ca_files,omitempty" yaml:"root_ca_files,omitempty"`
+	BaseDn         string   `json:"base_dn" yaml:"base_dn"`
+	BindDn         string   `json:"bind_dn" yaml:"bind_dn"`
+	UniqFilter     string   `toml:",omitempty" json:"uniq_filter,omitempty" yaml:"uniq_filter,omitempty"`
+	Timeout        int      `toml:",omitempty" json:"timeout,omitempty" yaml:"timeout,omitempty"`
 
-	Response htstat.HttpStatusTbl `toml:",omitempty"`
+	Response htstat.HttpStatusTbl `toml:",omitempty" json:"response,omitempty" yaml:"response,omitempty"`
+	Logging  struct {
+		EnableConsole bool   `toml:"enable_console,omitempty" json:"enable_console,omitempty" yaml:"enable_console,omitempty"`
+		Logfile       string `toml:"logfile,omitempty" json:"logfile,omitempty" yaml:"logfile,omitempty"`
+	} `toml:"logging,omitempty" json:"logging,omitempty" yaml:"logging,omitempty"`
 }
 
 var SocketType string
@@ -71,6 +79,10 @@ func init() {
 	}
 	flag.CommandLine.SetOutput(os.Stderr)
 
+	progName := filepath.Base(os.Args[0])
+	log.SetFlags(0)
+	logger.SetProgramName(progName)
+
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -85,7 +97,7 @@ func init() {
 	defer cfg_f.Close()
 
 	cfg := &NgxLdapAuthConfig{}
-	if err := toml.NewDecoder(cfg_f).Decode(&cfg); err != nil {
+	if err := cfgloader.LoadConfig(cfg_f, flag.Arg(0), cfg); err != nil {
 		die("Config file parse error: %s", err)
 	}
 
@@ -171,6 +183,12 @@ func main() {
 	if SocketType == "unix" {
 		defer os.Remove(SocketPath)
 		os.Chmod(SocketPath, 0777)
+	}
+
+	if SocketType == "unix" {
+		logger.LogWithTime("Server started: socket_type=unix socket_path=%s", SocketPath)
+	} else {
+		logger.LogWithTime("Server started: socket_type=tcp socket_path=%s", SocketPath)
 	}
 
 	serr := srv.Serve(lstn)

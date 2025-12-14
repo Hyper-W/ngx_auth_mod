@@ -5,17 +5,21 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/l4go/task"
-	"github.com/naoina/toml"
 
 	"ngx_auth/htstat"
+
+	cfgloader "ngx_auth/config_loader"
+	logger "ngx_auth/logger"
 )
 
 func die(format string, v ...interface{}) {
@@ -28,15 +32,15 @@ func warn(format string, v ...interface{}) {
 }
 
 type TestAuthConfig struct {
-	SocketType     string
-	SocketPath     string
-	CacheSeconds   uint `toml:",omitempty"`
-	NegCacheSeconds uint `toml:",omitempty"`
-	UseEtag        bool `toml:",omitempty"`
-	Password       map[string]string
-	AuthRealm      string
+	SocketType      string            `json:"socket_type" yaml:"socket_type"`
+	SocketPath      string            `json:"socket_path" yaml:"socket_path"`
+	CacheSeconds    uint              `toml:",omitempty" json:"cache_seconds,omitempty" yaml:"cache_seconds,omitempty"`
+	NegCacheSeconds uint              `toml:",omitempty" json:"neg_cache_seconds,omitempty" yaml:"neg_cache_seconds,omitempty"`
+	UseEtag         bool              `toml:",omitempty" json:"use_etag,omitempty" yaml:"use_etag,omitempty"`
+	Password        map[string]string `json:"password" yaml:"password"`
+	AuthRealm       string            `json:"auth_realm" yaml:"auth_realm"`
 
-	Response htstat.HttpStatusTbl `toml:",omitempty"`
+	Response htstat.HttpStatusTbl `toml:",omitempty" json:"response,omitempty" yaml:"response,omitempty"`
 }
 
 var SocketType string
@@ -61,6 +65,10 @@ func init() {
 	}
 	flag.CommandLine.SetOutput(os.Stderr)
 
+	progName := filepath.Base(os.Args[0])
+	log.SetFlags(0)
+	logger.SetProgramName(progName)
+
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -75,7 +83,7 @@ func init() {
 	defer cfg_f.Close()
 
 	cfg := &TestAuthConfig{}
-	if err := toml.NewDecoder(cfg_f).Decode(&cfg); err != nil {
+	if err := cfgloader.LoadConfig(cfg_f, flag.Arg(0), cfg); err != nil {
 		die("Config file parse error: %s", err)
 	}
 
@@ -150,6 +158,12 @@ func main() {
 	if SocketType == "unix" {
 		defer os.Remove(SocketPath)
 		os.Chmod(SocketPath, 0777)
+	}
+
+	if SocketType == "unix" {
+		logger.LogWithTime("Server started: socket_type=unix socket_path=%s", SocketPath)
+	} else {
+		logger.LogWithTime("Server started: socket_type=tcp socket_path=%s", SocketPath)
 	}
 
 	serr := srv.Serve(lstn)
