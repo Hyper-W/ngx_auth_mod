@@ -1,0 +1,17 @@
+services:
+  ngx_auth_mod-dev:
+    build:
+      context: .
+      args:
+        - USER=${USER:-user} # Your User Name
+        - USER_ID=${USER_ID:-1000} # Your User ID
+        - GROUP_ID=${GROUP_ID:-1000} # Your GROUP ID
+        - ALPINE_VERSION_NAME=${ALPINE_VERSION_NAME:-latest} # alpine code name
+    image: ngx_auth_mod-dev:alpine
+    container_name: ngx_auth_mod-dev
+    volumes:
+      - type: bind
+        source: ../
+        target: /ngx_auth_mod
+    tty: true
+    command: sh
