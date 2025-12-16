@@ -41,6 +41,12 @@ type TestAuthConfig struct {
 	AuthRealm       string            `json:"auth_realm" yaml:"auth_realm"`
 
 	Response htstat.HttpStatusTbl `toml:",omitempty" json:"response,omitempty" yaml:"response,omitempty"`
+
+	Logging struct {
+		EnableConsole bool   `toml:"enable_console,omitempty" json:"enable_console,omitempty" yaml:"enable_console,omitempty"`
+		Logfile       string `toml:"logfile,omitempty" json:"logfile,omitempty" yaml:"logfile,omitempty"`
+		LoggingLevel  string `toml:"logging_level,omitempty" json:"logging_level,omitempty" yaml:"logging_level,omitempty"`
+	} `toml:"logging,omitempty" json:"logging,omitempty" yaml:"logging,omitempty"`
 }
 
 var SocketType string
@@ -86,6 +92,9 @@ func init() {
 	if err := cfgloader.LoadConfig(cfg_f, flag.Arg(0), cfg); err != nil {
 		die("Config file parse error: %s", err)
 	}
+
+	// Configure logging
+	logger.SetLoggingLevel(cfg.Logging.LoggingLevel)
 
 	SocketType = cfg.SocketType
 	SocketPath = cfg.SocketPath

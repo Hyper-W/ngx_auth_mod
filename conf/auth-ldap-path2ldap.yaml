@@ -27,3 +27,4 @@ authz:
 logging:
   enable_console: true
   logfile: "/ngx_auth_mod/logfilea.log"
+  logging_level: "normal"

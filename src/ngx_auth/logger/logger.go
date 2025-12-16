@@ -7,15 +7,47 @@ import (
 	"time"
 )
 
+const (
+	LevelMinimum = iota
+	LevelNormal
+	LevelMaximum
+)
+
 var (
 	mu       sync.RWMutex
 	progName string
+	logLevel int
 )
 
 func SetProgramName(name string) {
 	mu.Lock()
 	progName = name
 	mu.Unlock()
+}
+
+// SetLoggingLevel sets the logging verbosity level.
+// "minimum" = LevelMinimum (auth failures only)
+// "normal" = LevelNormal (+ auth successes)
+// "maximum" = LevelMaximum (+ authz successes)
+func SetLoggingLevel(level string) {
+	mu.Lock()
+	switch {
+	case level == "minimum", level == "MINIMUM":
+		logLevel = LevelMinimum
+	case level == "maximum", level == "MAXIMUM":
+		logLevel = LevelMaximum
+	default:
+		// default to "normal"
+		logLevel = LevelNormal
+	}
+	mu.Unlock()
+}
+
+// GetLoggingLevel returns the current logging level.
+func GetLoggingLevel() int {
+	mu.RLock()
+	defer mu.RUnlock()
+	return logLevel
 }
 
 func LogWithTime(format string, v ...interface{}) {

@@ -68,6 +68,7 @@ type NgxLdapPathAuthConfig struct {
 	Logging  struct {
 		EnableConsole bool   `toml:"enable_console,omitempty" json:"enable_console,omitempty" yaml:"enable_console,omitempty"`
 		Logfile       string `toml:"logfile,omitempty" json:"logfile,omitempty" yaml:"logfile,omitempty"`
+		LoggingLevel  string `toml:"logging_level,omitempty" json:"logging_level,omitempty" yaml:"logging_level,omitempty"`
 	} `toml:"logging,omitempty" json:"logging,omitempty" yaml:"logging,omitempty"`
 }
 
@@ -148,6 +149,7 @@ func init() {
 	progName := filepath.Base(os.Args[0])
 	log.SetFlags(0)
 	logger.SetProgramName(progName)
+	logger.SetLoggingLevel(cfg.Logging.LoggingLevel)
 
 	SocketType = cfg.SocketType
 	SocketPath = cfg.SocketPath
