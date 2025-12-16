@@ -158,6 +158,7 @@ func (lba *LdapAuth) Authenticate(user, pass string) (bool, bool, error) {
 			logger.LogWithTime("LDAP unique filter no match: user=%s filter=%s entries=%d", user, lba.cfg.UniqueFilter, len(res.Entries))
 			return false, false, nil
 		}
+		logger.LogWithTime("LDAP unique filter succeeded: user=%s filter=%s", user, lba.cfg.UniqueFilter)
 	}
 	if lba.cfg.AuthzFilter != "" {
 		res, e := lba.conn.Search(lba.new_search_param(lba.cfg.AuthzFilter, user))
@@ -169,6 +170,7 @@ func (lba *LdapAuth) Authenticate(user, pass string) (bool, bool, error) {
 			logger.LogWithTime("LDAP authz filter no match: user=%s filter=%s entries=%d", user, lba.cfg.AuthzFilter, len(res.Entries))
 			return true, false, nil
 		}
+		logger.LogWithTime("LDAP authz filter succeeded: user=%s filter=%s", user, lba.cfg.AuthzFilter)
 	}
 
 	return true, true, nil
