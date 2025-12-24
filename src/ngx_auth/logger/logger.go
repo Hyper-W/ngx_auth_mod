@@ -3,6 +3,8 @@ package logger
 import (
 	"fmt"
 	"log"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -48,6 +50,32 @@ func GetLoggingLevel() int {
 	mu.RLock()
 	defer mu.RUnlock()
 	return logLevel
+}
+
+// ExtractClientIP extracts the actual client IP from an HTTP request.
+// It checks X-Forwarded-For and X-Real-IP headers for proxied requests,
+// falling back to RemoteAddr if neither header is present.
+func ExtractClientIP(r *http.Request) string {
+	// Check X-Forwarded-For header first (used by Nginx, etc.)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For can contain multiple IPs; the first one is the original client
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+
+	// Check X-Real-IP header (alternative proxy header)
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return strings.TrimSpace(xri)
+	}
+
+	// Fall back to RemoteAddr if no proxy headers are present
+	clientIP := r.RemoteAddr
+	if idx := strings.LastIndex(clientIP, ":"); idx != -1 {
+		clientIP = clientIP[:idx]
+	}
+	return clientIP
 }
 
 func LogWithTime(format string, v ...interface{}) {

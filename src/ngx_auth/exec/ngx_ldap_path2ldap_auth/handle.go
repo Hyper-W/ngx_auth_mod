@@ -10,6 +10,7 @@ import (
 
 	"ngx_auth/etag"
 	"ngx_auth/ldap_auth"
+	"ngx_auth/logger"
 )
 
 func get_path_filter(rpath string) (bool, string) {
@@ -52,7 +53,7 @@ func http_not_auth(w http.ResponseWriter, _ *http.Request) {
 
 var userMtx = var_mtx.NewVarMutex()
 
-func auth_path(user string, pass string, path string) (bool, bool) {
+func auth_path(user string, pass string, path string, clientIP string) (bool, bool) {
 	ldap_cfg := *LdapAuthConfig
 	ok_path, path_filter := get_path_filter(path)
 	if !ok_path {
@@ -71,7 +72,7 @@ func auth_path(user string, pass string, path string) (bool, bool) {
 	}
 	defer la.Close()
 
-	ok_auth, ok_authz, err := la.Authenticate(user, pass)
+	ok_auth, ok_authz, err := la.Authenticate(user, pass, clientIP)
 	if err != nil {
 		return false, false
 	}
@@ -138,6 +139,9 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract client IP, accounting for proxies (X-Forwarded-For, X-Real-IP)
+	clientIP := logger.ExtractClientIP(r)
+
 	if NegCacheSeconds > 0 {
 		w.Header().Set("Cache-Control",
 			fmt.Sprintf("max-age=%d, must-revalidate", NegCacheSeconds))
@@ -153,7 +157,7 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ok_auth, ok_authz := auth_path(user, pass, rpath)
+	ok_auth, ok_authz := auth_path(user, pass, rpath, clientIP)
 	if !ok_auth {
 		http_not_auth(w, r)
 		return

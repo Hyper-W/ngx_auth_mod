@@ -37,7 +37,7 @@ func auth(user, pass string) bool {
 	}
 	defer la.Close()
 
-	ok, _, err := la.Authenticate(user, pass)
+	ok, _, err := la.Authenticate(user, pass, "check_ldap")
 	if err != nil {
 		warn("Authenticate error: %s", err.Error())
 		return false

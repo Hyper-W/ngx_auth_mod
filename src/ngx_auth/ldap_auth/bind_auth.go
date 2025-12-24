@@ -152,46 +152,46 @@ func (lba *LdapAuth) new_search_param(flt_pat string, user string) *ldap.SearchR
 		nil)
 }
 
-func (lba *LdapAuth) Authenticate(user, pass string) (bool, bool, error) {
+func (lba *LdapAuth) Authenticate(user, pass, clientIP string) (bool, bool, error) {
 	bind_dn := replace_user(lba.cfg.BindDn, user)
 	if err := lba.conn.Bind(bind_dn, pass); err != nil {
 		// Bind failures are always logged (minimum level)
-		logger.LogWithTime("LDAP bind failed: bind_dn=%s user=%s err=%v", bind_dn, user, err)
+		logger.LogWithTime("LDAP bind failed: bind_dn=%s user=%s client_ip=%s err=%v", bind_dn, user, clientIP, err)
 		return false, false, nil
 	}
 
 	// Bind success is logged at normal level
-	logIfLevel(LogLevelNormal, "LDAP bind succeeded: bind_dn=%s user=%s", bind_dn, user)
+	logIfLevel(LogLevelNormal, "LDAP bind succeeded: bind_dn=%s user=%s client_ip=%s", bind_dn, user, clientIP)
 
 	if lba.cfg.UniqueFilter != "" {
 		res, e := lba.conn.Search(lba.new_search_param(lba.cfg.UniqueFilter, user))
 		if e != nil {
 			// Filter errors are always logged
-			logger.LogWithTime("LDAP unique filter search error: user=%s filter=%s err=%v", user, lba.cfg.UniqueFilter, e)
+			logger.LogWithTime("LDAP unique filter search error: user=%s filter=%s client_ip=%s err=%v", user, lba.cfg.UniqueFilter, clientIP, e)
 			return false, false, e
 		}
 		if len(res.Entries) != 1 {
 			// Filter mismatches are always logged
-			logger.LogWithTime("LDAP unique filter no match: user=%s filter=%s entries=%d", user, lba.cfg.UniqueFilter, len(res.Entries))
+			logger.LogWithTime("LDAP unique filter no match: user=%s filter=%s client_ip=%s entries=%d", user, lba.cfg.UniqueFilter, clientIP, len(res.Entries))
 			return false, false, nil
 		}
 		// Unique filter success is logged at maximum level
-		logIfLevel(LogLevelMaximum, "LDAP unique filter succeeded: user=%s filter=%s", user, lba.cfg.UniqueFilter)
+		logIfLevel(LogLevelMaximum, "LDAP unique filter succeeded: user=%s filter=%s client_ip=%s", user, lba.cfg.UniqueFilter, clientIP)
 	}
 	if lba.cfg.AuthzFilter != "" {
 		res, e := lba.conn.Search(lba.new_search_param(lba.cfg.AuthzFilter, user))
 		if e != nil {
 			// Filter errors are always logged
-			logger.LogWithTime("LDAP authz filter search error: user=%s filter=%s err=%v", user, lba.cfg.AuthzFilter, e)
+			logger.LogWithTime("LDAP authz filter search error: user=%s filter=%s client_ip=%s err=%v", user, lba.cfg.AuthzFilter, clientIP, e)
 			return true, false, e
 		}
 		if len(res.Entries) != 1 {
 			// Filter mismatches are always logged
-			logger.LogWithTime("LDAP authz filter no match: user=%s filter=%s entries=%d", user, lba.cfg.AuthzFilter, len(res.Entries))
+			logger.LogWithTime("LDAP authz filter no match: user=%s filter=%s client_ip=%s entries=%d", user, lba.cfg.AuthzFilter, clientIP, len(res.Entries))
 			return true, false, nil
 		}
 		// Authz filter success is logged at maximum level
-		logIfLevel(LogLevelMaximum, "LDAP authz filter succeeded: user=%s filter=%s", user, lba.cfg.AuthzFilter)
+		logIfLevel(LogLevelMaximum, "LDAP authz filter succeeded: user=%s filter=%s client_ip=%s", user, lba.cfg.AuthzFilter, clientIP)
 	}
 
 	return true, true, nil
