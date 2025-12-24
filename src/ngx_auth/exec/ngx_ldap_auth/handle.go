@@ -10,11 +10,12 @@ import (
 
 	"ngx_auth/etag"
 	"ngx_auth/ldap_auth"
+	"ngx_auth/logger"
 )
 
 var userMtx = var_mtx.NewVarMutex()
 
-func auth(user string, pass string) bool {
+func auth(user string, pass string, clientIP string) bool {
 	la, err := ldap_auth.NewLdapAuth(LdapAuthConfig)
 	if err != nil {
 		return false
@@ -26,7 +27,7 @@ func auth(user string, pass string) bool {
 		defer userMtx.Unlock(user)
 	}
 
-	ok_auth, _, err := la.Authenticate(user, pass)
+	ok_auth, _, err := la.Authenticate(user, pass, clientIP)
 	if err != nil {
 		return false
 	}
@@ -83,6 +84,9 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract client IP, accounting for proxies (X-Forwarded-For, X-Real-IP)
+	clientIP := logger.ExtractClientIP(r)
+
 	if NegCacheSeconds > 0 {
 		w.Header().Set("Cache-Control",
 			fmt.Sprintf("max-age=%d, must-revalidate", NegCacheSeconds))
@@ -98,7 +102,7 @@ func TestAuthHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if !auth(user, pass) {
+	if !auth(user, pass, clientIP) {
 		http_not_auth(w, r)
 		return
 	}
